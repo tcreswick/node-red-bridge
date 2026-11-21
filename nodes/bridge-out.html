@@ -1,0 +1,45 @@
+<script type="text/javascript">
+RED.nodes.registerType('bridge-out', {
+  category: 'common', color: '#a6bbcf',
+  defaults: { name: { value: '' }, remote: { type: 'bridge-remote', required: true }, target: { value: '' }, remotes: { value: [] },
+    offline: { value: 'error' }, queueMax: { value: 100 }, queueTime: { value: 60 } },
+  inputs: 1, outputs: 0, icon: 'link-out.svg', align: 'right',
+  paletteLabel: 'bridge out',
+  label: function () { return this.name || (this.target ? '→ ' + this.target : 'bridge out'); },
+  labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+  oneditprepare: function () {
+    var node = this, ticks = $('#br-ticks');
+    window.bridgeUI.renderTicks(ticks, this.remotes);
+    function off() { $('.br-q').toggle($('#node-input-offline').val() === 'queue'); }
+    $('#node-input-offline').on('change', off); off();
+    function load() {
+      var id = $('#node-input-remote').val(), dl = $('#br-targets').empty();
+      if (!id || id === '_ADD_') return;
+      window.bridgeUI.api(id, 'state').done(function (s) {
+        (s.ins || []).forEach(function (n) { $('<option/>').val(n).appendTo(dl); });
+        $('#br-tinfo').text(s.state === 'online' ? (s.ins.length + ' bridge-in node(s) discovered') : 'remote is ' + s.state + ' — type the name manually');
+      }).fail(function () { $('#br-tinfo').text('remote not deployed / offline — type the name manually'); });
+      var cb = ticks.find('input[data-id="' + id + '"]'); if (cb.length) cb.prop('checked', true);
+    }
+    $('#node-input-remote').on('change', load); setTimeout(load, 100);
+  },
+  oneditsave: function () { this.remotes = window.bridgeUI.readTicks($('#br-ticks')); }
+});
+</script>
+<script type="text/html" data-template-name="bridge-out">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-remote"><i class="fa fa-globe"></i> Remote</label><input type="text" id="node-input-remote"></div>
+  <div class="form-row"><label for="node-input-target"><i class="fa fa-bullseye"></i> Target</label><input type="text" id="node-input-target" list="br-targets" placeholder="bridge-in name on the remote"><datalist id="br-targets"></datalist></div>
+  <div class="form-row"><label></label><span id="br-tinfo" class="form-tips"></span></div>
+  <div class="form-row"><label for="node-input-offline"><i class="fa fa-plug"></i> If offline</label>
+    <select id="node-input-offline"><option value="error">raise error (Catch node)</option><option value="drop">drop with warning</option><option value="queue">queue</option></select></div>
+  <div class="form-row br-q"><label>Queue</label>max <input type="number" id="node-input-queueMax" style="width:70px"> msgs for <input type="number" id="node-input-queueTime" style="width:70px"> s</div>
+  <div class="form-row"><label>Allowed to see this node</label><div id="br-ticks" style="margin-left:10px"></div></div>
+</script>
+<script type="text/html" data-help-name="bridge-out">
+<p>Sends the message to a <code>bridge-in</code> node of a given name on a paired remote instance, like a link-out.</p>
+<h3>Inputs</h3>
+<dl class="message-properties"><dt class="optional">bridgeTarget <span class="property-type">string</span></dt><dd>overrides the target name set in the node.</dd></dl>
+<h3>Details</h3>
+<p>The target dropdown lists the bridge-in names the remote has made visible to this instance (free text works too). The node must be ticked for the remote (tick-boxes, or the remote's list), otherwise sending fails. The node completes once the remote acknowledged delivery; errors (offline, unknown target, not visible) go to a Catch node. <i>If offline</i> selects error / drop / queue. Whole msg is sent as JSON; Buffers are preserved, functions dropped with a warning, <code>req</code>/<code>res</code> removed.</p>
+</script>

@@ -1,0 +1,24 @@
+<script type="text/javascript">
+RED.nodes.registerType('bridge-in', {
+  category: 'common', color: '#a6bbcf',
+  defaults: { name: { value: '', required: true }, remotes: { value: [] } },
+  inputs: 0, outputs: 1, icon: 'link-in.svg',
+  paletteLabel: 'bridge in',
+  label: function () { return this.name || 'bridge in'; },
+  labelStyle: function () { return this.name ? 'node_label_italic' : ''; },
+  oneditprepare: function () { window.bridgeUI.renderTicks($('#br-ticks'), this.remotes); },
+  oneditsave: function () { this.remotes = window.bridgeUI.readTicks($('#br-ticks')); }
+});
+</script>
+<script type="text/html" data-template-name="bridge-in">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name" placeholder="name remotes address"></div>
+  <div class="form-row"><label>Remotes allowed to send to this node</label><div id="br-ticks" style="margin-left:10px"></div></div>
+</script>
+<script type="text/html" data-help-name="bridge-in">
+<p>Receives messages sent by a <code>bridge-out</code> (or <code>bridge-call</code>) on a paired remote instance, like a link-in.</p>
+<h3>Outputs</h3>
+<dl class="message-properties"><dt>msg <span class="property-type">object</span></dt><dd>the whole message from the remote.</dd>
+<dt>msg._bridge <span class="property-type">object</span></dt><dd><code>{remote, remoteId, from}</code>: name of the remote config and of the sending node; <code>callId</code> if it is a call (answer it with <i>bridge reply</i>).</dd></dl>
+<h3>Details</h3>
+<p>Visibility is opt-in: tick the remotes that may see and send to this node. Names need not be unique; all matching nodes receive the message.</p>
+</script>

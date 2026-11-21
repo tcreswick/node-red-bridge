@@ -1,0 +1,27 @@
+<script type="text/javascript">
+RED.nodes.registerType('bridge-status', {
+  category: 'common', color: '#a6bbcf',
+  defaults: { name: { value: '' }, remote: { value: '_all' }, emitOnDeploy: { value: false } },
+  inputs: 0, outputs: 1, icon: 'status.svg',
+  paletteLabel: 'bridge status',
+  label: function () { return this.name || 'bridge status'; },
+  oneditprepare: function () {
+    var sel = $('#node-input-remote'), cur = this.remote;
+    window.bridgeUI.remotes().forEach(function (c) { $('<option/>').val(c.id).text(window.bridgeUI.remoteLabel(c)).appendTo(sel); });
+    sel.val(cur || '_all');
+  }
+});
+</script>
+<script type="text/html" data-template-name="bridge-status">
+  <div class="form-row"><label for="node-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-input-name"></div>
+  <div class="form-row"><label for="node-input-remote"><i class="fa fa-globe"></i> Remote</label><select id="node-input-remote"><option value="_all">all remotes</option></select></div>
+  <div class="form-row"><label>&nbsp;</label><input type="checkbox" id="node-input-emitOnDeploy" style="width:auto"> emit current state on deploy</div>
+</script>
+<script type="text/html" data-help-name="bridge-status">
+<p>Emits a message when a bridge link goes online or offline, or authentication fails.</p>
+<h3>Outputs</h3>
+<dl class="message-properties"><dt>payload <span class="property-type">string</span></dt><dd><code>online</code> or <code>offline</code></dd>
+<dt>remote, remoteId <span class="property-type">string</span></dt><dd>the bridge-remote config.</dd>
+<dt>state, reason <span class="property-type">string</span></dt><dd>detailed state (<code>auth-failed</code>, <code>unpaired</code>…) and reason text.</dd>
+<dt>since <span class="property-type">number</span></dt><dd>timestamp (ms) of the state change.</dd></dl>
+</script>

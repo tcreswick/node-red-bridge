@@ -1,0 +1,29 @@
+{
+  "name": "@tcreswick/node-red-bridge",
+  "version": "1.0.0",
+  "description": "Securely link two Node-RED instances: remote link-in/link-out over an authenticated, encrypted WebSocket with key pairing, per-node visibility, discovery, keepalive and auto-reconnect",
+  "keywords": ["node-red", "link", "bridge", "websocket", "remote", "encrypted"],
+  "license": "MIT",
+  "author": "tcreswick",
+  "engines": { "node": ">=18" },
+  "node-red": {
+    "version": ">=3.0.0",
+    "nodes": {
+      "bridge-remote": "nodes/bridge-remote.js",
+      "bridge-in": "nodes/bridge-in.js",
+      "bridge-out": "nodes/bridge-out.js",
+      "bridge-status": "nodes/bridge-status.js",
+      "bridge-call": "nodes/bridge-call.js",
+      "bridge-reply": "nodes/bridge-reply.js"
+    }
+  },
+  "files": ["nodes", "lib", "examples", "README.md", "LICENSE"],
+  "repository": { "type": "git", "url": "git+https://github.com/tcreswick/node-red-bridge.git" },
+  "homepage": "https://github.com/tcreswick/node-red-bridge#readme",
+  "bugs": { "url": "https://github.com/tcreswick/node-red-bridge/issues" },
+  "scripts": {
+    "test": "node --test test/unit.test.js",
+    "test:integration": "node test/integration.js"
+  },
+  "dependencies": { "ws": "^8.18.0" }
+}

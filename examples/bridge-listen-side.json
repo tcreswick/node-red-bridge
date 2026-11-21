@@ -1,0 +1,11 @@
+[
+  {"id":"b1tab","type":"tab","label":"Bridge: listen side","disabled":false},
+  {"id":"b1cfg","type":"bridge-remote","name":"office","role":"listen","url":"","publicUrl":"ws://localhost:1880/bridge/ws","path":"/bridge/ws","pingInterval":15,"pingTimeout":45,"backoffMin":1,"backoffMax":60,"maxSize":10,"shareAll":false},
+  {"id":"b1in","type":"bridge-in","z":"b1tab","name":"sensor-data","remotes":["b1cfg"],"x":160,"y":80,"wires":[["b1dbg"]]},
+  {"id":"b1dbg","type":"debug","z":"b1tab","name":"from remote","active":true,"tosidebar":true,"complete":"true","x":380,"y":80,"wires":[]},
+  {"id":"b1echo","type":"bridge-in","z":"b1tab","name":"echo","remotes":["b1cfg"],"x":150,"y":160,"wires":[["b1fn"]]},
+  {"id":"b1fn","type":"function","z":"b1tab","name":"answer","func":"msg.payload = 'echo: ' + msg.payload;\nreturn msg;","outputs":1,"x":330,"y":160,"wires":[["b1rep"]]},
+  {"id":"b1rep","type":"bridge-reply","z":"b1tab","name":"","x":500,"y":160,"wires":[]},
+  {"id":"b1st","type":"bridge-status","z":"b1tab","name":"","remote":"_all","emitOnDeploy":true,"x":160,"y":240,"wires":[["b1dbg2"]]},
+  {"id":"b1dbg2","type":"debug","z":"b1tab","name":"link status","active":true,"tosidebar":true,"complete":"true","x":380,"y":240,"wires":[]}
+]

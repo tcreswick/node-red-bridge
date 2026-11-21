@@ -1,0 +1,10 @@
+[
+  {"id":"b2tab","type":"tab","label":"Bridge: connect side","disabled":false},
+  {"id":"b2cfg","type":"bridge-remote","name":"home","role":"connect","url":"","publicUrl":"","path":"/bridge/ws","pingInterval":15,"pingTimeout":45,"backoffMin":1,"backoffMax":60,"maxSize":10,"shareAll":false},
+  {"id":"b2inj","type":"inject","z":"b2tab","name":"send","props":[{"p":"payload"}],"payload":"hello from the other side","payloadType":"str","x":130,"y":80,"wires":[["b2out"]]},
+  {"id":"b2out","type":"bridge-out","z":"b2tab","name":"to-sensor-data","remote":"b2cfg","target":"sensor-data","remotes":["b2cfg"],"offline":"error","queueMax":100,"queueTime":60,"x":340,"y":80,"wires":[]},
+  {"id":"b2inj2","type":"inject","z":"b2tab","name":"call","props":[{"p":"payload"}],"payload":"ping","payloadType":"str","x":130,"y":160,"wires":[["b2call"]]},
+  {"id":"b2call","type":"bridge-call","z":"b2tab","name":"","remote":"b2cfg","target":"echo","remotes":["b2cfg"],"timeout":10,"x":330,"y":160,"wires":[["b2dbg"]]},
+  {"id":"b2dbg","type":"debug","z":"b2tab","name":"reply","active":true,"tosidebar":true,"complete":"true","x":520,"y":160,"wires":[]},
+  {"id":"b2catch","type":"catch","z":"b2tab","name":"","scope":null,"x":130,"y":240,"wires":[["b2dbg"]]}
+]

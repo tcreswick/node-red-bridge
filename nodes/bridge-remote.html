@@ -1,0 +1,140 @@
+<script type="text/javascript">
+(function () {
+  // Shared helpers for all bridge nodes
+  window.bridgeUI = {
+    remotes: function () { var r = []; RED.nodes.eachConfig(function (c) { if (c.type === 'bridge-remote') r.push(c); }); return r; },
+    remoteLabel: function (c) { return c.name || (c.role === 'listen' ? 'listen' : (c.url || 'remote')) + ' (' + c.id + ')'; },
+    // tick-box list: which remotes may see/use this node
+    renderTicks: function (container, selected) {
+      container.empty();
+      var rs = this.remotes();
+      if (!rs.length) container.append('<div class="form-tips">No bridge-remote config nodes yet.</div>');
+      rs.forEach(function (c) {
+        var row = $('<div/>').appendTo(container);
+        var cb = $('<input type="checkbox" style="width:auto;margin:0 6px 0 0;vertical-align:baseline"/>').attr('data-id', c.id).prop('checked', (selected || []).indexOf(c.id) >= 0).appendTo(row);
+        $('<span/>').text(window.bridgeUI.remoteLabel(c) + (c.shareAll ? ' (shares all nodes)' : '')).appendTo(row);
+      });
+    },
+    readTicks: function (container) { return container.find('input:checked').map(function () { return $(this).attr('data-id'); }).get(); },
+    api: function (id, path, method, body) {
+      return $.ajax({ url: 'bridge/' + id + '/' + path, method: method || 'GET', data: body ? JSON.stringify(body) : undefined, contentType: 'application/json' });
+    }
+  };
+})();
+
+RED.nodes.registerType('bridge-remote', {
+  category: 'config',
+  defaults: {
+    name: { value: '' },
+    role: { value: 'connect' },
+    url: { value: '' },
+    publicUrl: { value: '' },
+    path: { value: '/bridge/ws' },
+    pingInterval: { value: 15, validate: RED.validators.number() },
+    pingTimeout: { value: 45, validate: RED.validators.number() },
+    backoffMin: { value: 1, validate: RED.validators.number() },
+    backoffMax: { value: 60, validate: RED.validators.number() },
+    maxSize: { value: 10, validate: RED.validators.number() },
+    shareAll: { value: false }
+  },
+  label: function () { return this.name || (this.role === 'listen' ? 'bridge (listen ' + this.path + ')' : 'bridge → ' + (this.url || 'remote')); },
+  paletteLabel: 'bridge remote',
+  oneditprepare: function () {
+    var node = this, poll = null;
+    function role() { var r = $('#node-config-input-role').val(); $('.br-connect').toggle(r === 'connect'); $('.br-listen').toggle(r === 'listen'); }
+    $('#node-config-input-role').on('change', role); role();
+    $('#node-config-input-publicUrl').attr('placeholder', (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + ($('#node-config-input-path').val() || '/bridge/ws'));
+
+    // exposure matrix
+    var matrix = $('#br-matrix').empty();
+    var found = 0;
+    RED.nodes.eachNode(function (n) {
+      if (['bridge-in', 'bridge-out', 'bridge-call'].indexOf(n.type) < 0) return;
+      found++;
+      var row = $('<div/>').css({ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }).appendTo(matrix);
+      var cb = $('<input type="checkbox" style="width:auto;margin:0"/>').prop('checked', (n.remotes || []).indexOf(node.id) >= 0).appendTo(row);
+      $('<span/>').text((n.name || '(unnamed)') + '  ·  ' + n.type).appendTo(row);
+      cb.on('change', function () {
+        var l = (n.remotes || []).filter(function (x) { return x !== node.id; });
+        if (this.checked) l.push(node.id);
+        n.remotes = l; n.changed = true; n.dirty = true; RED.nodes.dirty(true); RED.view.redraw();
+      });
+    });
+    if (!found) matrix.append('<div class="form-tips">No bridge-in / bridge-out nodes in your flows yet.</div>');
+
+    function show(msg, err) { $('#br-msg').text(msg || '').css('color', err ? '#c00' : ''); }
+    function refresh() {
+      window.bridgeUI.api(node.id, 'state').done(function (s) {
+        $('#br-state').text(s.state + (s.reason ? ' — ' + s.reason : ''));
+        $('#br-fp').text('This instance: ' + s.localFingerprint + (s.paired ? '   |   Remote: ' + s.peerFingerprint : '   |   not paired'));
+        $('#br-disc').text((s.ins.length ? 'bridge-in: ' + s.ins.join(', ') : 'no bridge-in visible') + (s.outs.length ? '   |   bridge-out: ' + s.outs.join(', ') : ''));
+      }).fail(function () { $('#br-state').text('not deployed yet — deploy first'); $('#br-fp').text(''); $('#br-disc').text(''); });
+    }
+    refresh(); poll = setInterval(refresh, 3000);
+    this._brPoll = poll;
+
+    $('#br-code-btn').on('click', function () {
+      show('');
+      window.bridgeUI.api(node.id, 'code', 'POST', { url: $('#node-config-input-publicUrl').val() || $('#node-config-input-publicUrl').attr('placeholder') }).done(function (r) {
+        $('#br-code').val(r.code).show(); show('Valid until ' + new Date(r.expires).toLocaleTimeString() + ', single use. Paste it into the connect side.');
+      }).fail(function (x) { show((x.responseJSON && x.responseJSON.error) || 'failed', true); });
+    });
+    $('#br-pair-btn').on('click', function () {
+      show('Pairing…');
+      window.bridgeUI.api(node.id, 'pair', 'POST', { code: $('#br-pastecode').val() }).done(function (r) {
+        $('#node-config-input-url').val(r.url); show('Paired.'); $('#br-pastecode').val(''); refresh();
+      }).fail(function (x) { show((x.responseJSON && x.responseJSON.error) || 'failed', true); });
+    });
+    $('#br-unpair-btn').on('click', function () {
+      if (!confirm('Unpair? The remote will lose access too.')) return;
+      window.bridgeUI.api(node.id, 'unpair', 'POST').done(function () { show('Unpaired.'); refresh(); }).fail(function (x) { show((x.responseJSON && x.responseJSON.error) || 'failed', true); });
+    });
+  },
+  oneditsave: function () { clearInterval(this._brPoll); },
+  oneditcancel: function () { clearInterval(this._brPoll); }
+});
+</script>
+
+<script type="text/html" data-template-name="bridge-remote">
+  <div class="form-row"><label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label><input type="text" id="node-config-input-name" placeholder="e.g. home server"></div>
+  <div class="form-row"><label for="node-config-input-role"><i class="fa fa-exchange"></i> Role</label>
+    <select id="node-config-input-role"><option value="connect">connect — this side dials the remote</option><option value="listen">listen — the remote dials this side</option></select></div>
+  <div class="form-row br-connect"><label for="node-config-input-url"><i class="fa fa-globe"></i> Remote URL</label><input type="text" id="node-config-input-url" placeholder="wss://other.example.com/bridge/ws"></div>
+  <div class="form-row br-listen"><label for="node-config-input-path"><i class="fa fa-road"></i> Path</label><input type="text" id="node-config-input-path"></div>
+  <div class="form-row br-listen"><label for="node-config-input-publicUrl"><i class="fa fa-globe"></i> Public URL</label><input type="text" id="node-config-input-publicUrl"></div>
+  <div class="form-row"><label for="node-config-input-shareAll"><i class="fa fa-share-alt"></i> Share all</label><input type="checkbox" id="node-config-input-shareAll" style="width:auto"> share ALL bridge nodes with this remote (ignores tick-boxes)</div>
+
+  <div class="form-row"><b>Pairing</b></div>
+  <div class="form-row br-listen"><button type="button" class="red-ui-button" id="br-code-btn">Create pairing code</button>
+    <textarea id="br-code" readonly rows="4" style="display:none;width:100%;margin-top:6px;font-family:monospace;font-size:11px"></textarea></div>
+  <div class="form-row br-connect"><textarea id="br-pastecode" rows="3" style="width:100%;font-family:monospace;font-size:11px" placeholder="Paste the pairing code from the listening side (deploy this node first)"></textarea>
+    <button type="button" class="red-ui-button" id="br-pair-btn" style="margin-top:6px">Pair</button></div>
+  <div class="form-row"><button type="button" class="red-ui-button" id="br-unpair-btn">Unpair / revoke</button> <span id="br-msg"></span></div>
+  <div class="form-row"><label>Status</label><span id="br-state">…</span></div>
+  <div class="form-row"><label>Keys</label><span id="br-fp" style="font-family:monospace;font-size:11px"></span></div>
+  <div class="form-row"><label>Discovered</label><span id="br-disc"></span></div>
+
+  <div class="form-row"><b>Nodes visible to this remote</b> <span class="form-tips">(same as the tick-boxes inside each node)</span></div>
+  <div id="br-matrix" style="max-height:160px;overflow:auto"></div>
+
+  <details><summary>Keepalive / reconnect</summary>
+  <div class="form-row"><label for="node-config-input-pingInterval">Ping (s)</label><input type="number" id="node-config-input-pingInterval" style="width:80px"></div>
+  <div class="form-row"><label for="node-config-input-pingTimeout">Timeout (s)</label><input type="number" id="node-config-input-pingTimeout" style="width:80px"></div>
+  <div class="form-row br-connect"><label for="node-config-input-backoffMin">Backoff min (s)</label><input type="number" id="node-config-input-backoffMin" style="width:80px"></div>
+  <div class="form-row br-connect"><label for="node-config-input-backoffMax">Backoff max (s)</label><input type="number" id="node-config-input-backoffMax" style="width:80px"></div>
+  <div class="form-row"><label for="node-config-input-maxSize">Max msg (MB)</label><input type="number" id="node-config-input-maxSize" style="width:80px"></div>
+  </details>
+</script>
+
+<script type="text/html" data-help-name="bridge-remote">
+<p>One config node per remote Node-RED instance.</p>
+<h3>Pairing</h3>
+<ol>
+<li>On the <b>listen</b> side (reachable by the other): set role <i>listen</i>, set the <i>Public URL</i> the other side can reach (<code>ws://host:1880/bridge/ws</code>, or <code>wss://</code> behind a proxy), deploy, click <i>Create pairing code</i>.</li>
+<li>On the <b>connect</b> side: role <i>connect</i>, deploy, paste the code and click <i>Pair</i>.</li>
+</ol>
+<p>The code is single use and expires after 10 minutes. After pairing, both sides authenticate by key at every reconnect. Compare the displayed key fingerprints if you want to be sure.</p>
+<h3>Visibility</h3>
+<p>A bridge-in/out node is only visible to the remotes ticked for it (tick-boxes in the node, or the list here). <i>Share all</i> overrides this.</p>
+<p>Keys are stored in <code>bridge-identity.json</code> in the Node-RED user directory (mode 0600).</p>
+</script>
